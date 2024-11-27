@@ -13,7 +13,7 @@ laptop_density_label.pack()
 
 # Load YOLOv5 model
 model = torch.hub.load('ultralytics/yolov5', 'yolov5s', pretrained=True)  # YOLOv5 small model
-model.classes = [0]  # Restrict to "person" class only
+model.classes = [0] 
 
 # Phone camera URL
 phone_cam_url = "http://192.168.161.164:4747/video"

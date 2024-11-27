@@ -1,66 +1,75 @@
-import torch
 import cv2
+import tkinter as tk
+from tkinter import Label
+import torch  # PyTorch for YOLOv5 inference
 
-phone_cam_url = "http://192.168.225.169:4747/video"
-# Load the YOLOv5 model
-model = torch.hub.load('ultralytics/yolov5', 'yolov5s')  # YOLOv5 small model
-model.classes = [0]  # Class 0 corresponds to 'person' in the COCO dataset
+# Initialize Tkinter GUI
+root = tk.Tk()
+root.title("People Density Monitor")
+density_label = Label(root, text="Density: Calculating...", font=("Arial", 18))
+density_label.pack()
 
-def detect_people_dual_camera():
-    # Access the cameras
-    phone_cam = cv2.VideoCapture(0)  # Change to appropriate index for phone camera
-    laptop_cam = cv2.VideoCapture(phone_cam_url)  # Change to appropriate index for laptop camera
-    
-    if not phone_cam.isOpened():
-        print("Error: Could not access the phone camera.")
-        return
-    
-    if not laptop_cam.isOpened():
-        print("Error: Could not access the laptop camera.")
-        return
-    
-    print("Press 'q' to exit.")
-    
-    while True:
-        # Read frames from both cameras
-        ret1, phone_frame = phone_cam.read()
-        if not ret1:
-            print("Failed to grab frame from phone camera.")
-            break
-        
-        ret2, laptop_frame = laptop_cam.read()
-        if not ret2:
-            print("Failed to grab frame from laptop camera.")
-            break
+# Load YOLOv5 model
+model = torch.hub.load('ultralytics/yolov5', 'yolov5s', pretrained=True)  # YOLOv5 small model
 
-        # Resize frames to the same dimensions for concatenation
-        phone_frame_resized = cv2.resize(phone_frame, (640, 480))
-        laptop_frame_resized = cv2.resize(laptop_frame, (640, 480))
+# Phone camera URL
+phone_cam_url = "http://192.168.161.164:4747/video"
+phone_cam = cv2.VideoCapture(phone_cam_url)
 
-        # Combine frames horizontally (side-by-side)
-        combined_frame = cv2.hconcat([phone_frame_resized, laptop_frame_resized])
+# Laptop camera
+laptop_cam = cv2.VideoCapture(0)
 
-        # Perform YOLOv5 detection on the combined frame
-        results = model(combined_frame, size=640)
+def process_frame():
+    global phone_cam, laptop_cam, model
 
-        # Render detections on the frame
-        results.render()  # Annotates the combined frame in-place
+    # Read frame from phone camera
+    ret1, phone_frame = phone_cam.read()
+    if not ret1:
+        phone_frame = None
 
-        # Ensure the annotated frame remains in BGR for OpenCV display
-        annotated_frame = results.ims[0]
-        annotated_frame = cv2.cvtColor(annotated_frame, cv2.COLOR_RGB2BGR)
+    # Read frame from laptop camera
+    ret2, laptop_frame = laptop_cam.read()
+    if not ret2:
+        laptop_frame = None
 
-        # Display the annotated combined frame
-        cv2.imshow("Person Detection - Combined Camera Feeds", annotated_frame)
+    # Combine frames horizontally
+    if phone_frame is not None and laptop_frame is not None:
+        phone_frame = cv2.resize(phone_frame, (640, 480))
+        laptop_frame = cv2.resize(laptop_frame, (640, 480))
+        combined_frame = cv2.hconcat([phone_frame, laptop_frame])
+    elif phone_frame is not None:
+        combined_frame = phone_frame
+    elif laptop_frame is not None:
+        combined_frame = laptop_frame
+    else:
+        combined_frame = None
 
-        # Break the loop on 'q' key press
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
-    
-    # Release resources
-    phone_cam.release()
-    laptop_cam.release()
-    cv2.destroyAllWindows()
+    if combined_frame is not None:
+        # Run YOLO inference
+        results = model(combined_frame)
 
-# Run the dual-camera live feed detection
-detect_people_dual_camera()
+        # Filter out detections labeled as "person"
+        people_count = sum(1 for detection in results.xyxy[0] if int(detection[5]) == 0)  # Class 0 = Person
+
+        # Update the density in the Tkinter GUI
+        density_label.config(text=f"Density: {people_count} person(s)")
+
+        # Show combined frame in OpenCV window
+        annotated_frame = results.render()[0]  # Render detections
+        cv2.imshow("Combined Camera Feeds", annotated_frame)
+
+    # Check if 'q' is pressed to exit
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        root.quit()
+        phone_cam.release()
+        laptop_cam.release()
+        cv2.destroyAllWindows()
+
+    # Call this function again
+    root.after(10, process_frame)
+
+# Start processing frames
+process_frame()
+
+# Start Tkinter main loop
+root.mainloop()

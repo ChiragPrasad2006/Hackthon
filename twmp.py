@@ -15,6 +15,14 @@ class LogSign(tk.Toplevel):
         self.title("Login or Sign Up")
         self.geometry("500x500")  # Set the window size
 
+        background_image = Image.open("BackG.png")  # Replace with your image path
+        resized_image = background_image.resize((500, 500))  # Adjust to your window size
+        self.background_photo = ImageTk.PhotoImage(resized_image)
+
+        # Create a label to hold the image
+        background_label = tk.Label(self, image=self.background_photo)
+        background_label.place(relwidth=1, relheight=1)  # Cover the entire window
+
         style = ttk.Style(self)
         style.configure(
             "TButton",
@@ -90,7 +98,22 @@ class Login(tk.Toplevel):
         self.eye_button.grid(row=0, column=2, padx=5)
         self.eye_button.bind("<Button-1>", self.toggle_password)
 
-        self.login_button = ttk.Button(self, text="Login", command=self.add_account)
+        style = ttk.Style(self)
+        style.configure(
+            "TButton",
+            background="#004AAD",  # Set the default background color
+            foreground="#004AAD",
+            padding = (15, 2),
+            font = ("Arial", 12)
+        )
+
+        style.map(
+            "TButton",
+            background=[("active", "#004AAD")],  # Background color when button is active (hovered or clicked)
+            foreground=[("active", "blue")],  # Text color when hovered or clicked
+        )
+
+        self.login_button = ttk.Button(self, text="Login",style="TButton", command=self.add_account)
         self.login_button.pack(pady=20)
 
     def toggle_password(self, event=None):
@@ -123,7 +146,7 @@ class SignUp(tk.Toplevel):
         self.parent = parent
         self.title("Sign Up")
         self.geometry("500x500")
-        ttk.Label(self, text="Sign Up (Feature not implemented)").pack(pady=20)
+        ttk.Label(self, text="404:To Sign Up contact the Administrator to add your account in the DataBase").pack(pady=20)
 
 
 class HomePage(tk.Toplevel):

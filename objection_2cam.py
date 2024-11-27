@@ -1,7 +1,7 @@
 import torch
 import cv2
 
-phone_cam_url = "http://192.168.225.169:4747/video"
+phone_cam_url = "http://192.168.161.164:4747/video"
 # Load the YOLOv5 model
 model = torch.hub.load('ultralytics/yolov5', 'yolov5s')
 model.classes = [0]

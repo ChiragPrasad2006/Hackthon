@@ -1,38 +1,50 @@
 import cv2
-import sys
-import os
+import mediapipe as mp
+import numpy as np
 
-# Set the path to the OpenPose build directory (you may need to change this to your own path)
-sys.path.append('/path/to/openpose/build/python')
-from openpose import pyopenpose as op
+# Initialize MediaPipe Pose Detection
+mp_pose = mp.solutions.pose
+mp_drawing = mp.solutions.drawing_utils
+phone_cam_url = "http://192.168.225.169:4747/video"
+cap = cv2.VideoCapture(0)  # Using webcam for live feed
+prev_density = 0
+threshold_density_increase = 0.2  # Threshold for density change (e.g., 20% increase)
 
-# Set up OpenPose configuration
-params = {
-    "model_folder": "/path/to/openpose/models",  # Path to OpenPose models
-    "hand": False,  # Enable hand keypoint detection
-    "face": False,  # Enable face keypoint detection
-    "num_gpu": 1,  # Number of GPUs to use
-    "num_gpu_start": 0,  # Start from this GPU
-}
+with mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5) as pose:
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
+            break
+        
+        # Convert the frame to RGB for MediaPipe processing
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        results = pose.process(rgb_frame)
+        
+        # Count the number of people (based on detected pose landmarks)
+        detected_people = 0
+        if results.pose_landmarks:
+            detected_people += 1  # Count detected person (one person per frame if detected)
+        
+        frame_area = frame.shape[0] * frame.shape[1]
+        
+        # Density = number of detected people / area of the frame
+        density = detected_people / frame_area
+        
+        # Compare with previous density for sudden change detection
+        if prev_density > 0 and (density - prev_density) / prev_density > threshold_density_increase:
+            print("Sudden density increase detected!")
+        
+        prev_density = density
+        
+        # Draw pose landmarks on the frame
+        if results.pose_landmarks:
+            mp_drawing.draw_landmarks(frame, results.pose_landmarks, mp_pose.POSE_CONNECTIONS)
+        
+        # Show the output frame
+        cv2.imshow("Pose Detection", frame)
 
-# Initialize OpenPose
-opWrapper = op.WrapperPython()
-opWrapper.configure(params)
-opWrapper.start()
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
 
-# Read input image
-image_path = 'input_image.jpg'  # Path to your image
-image = cv2.imread(image_path)
-
-# Process image with OpenPose
-datum = op.Datum()
-datum.cvInputData = image
-opWrapper.emplaceAndPop([datum])
-
-# Output the result
-output_image = datum.cvOutputData
-cv2.imshow("OpenPose Output", output_image)
-
-# Wait for a key press and close the image window
-cv2.waitKey(0)
+cap.release()
 cv2.destroyAllWindows()

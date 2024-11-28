@@ -1,141 +1,344 @@
+import tkinter as tk
+from tkinter import ttk, messagebox
+from PIL import Image, ImageTk
 import cv2
+import os
 import torch
 import numpy as np
-from scipy.spatial import distance as dist
-from collections import OrderedDict
+import pandas as pd
 
-# CentroidTracker class (as previously provided)
-class CentroidTracker:
-    def __init__(self, maxDisappeared=40, maxDistance=50):
-        self.nextObjectID = 0
-        self.objects = OrderedDict()
-        self.disappeared = OrderedDict()
-        self.maxDisappeared = maxDisappeared
-        self.maxDistance = maxDistance
+email_origin = "0"  # Replace with your default email
+master_pass = "0"  # Replace with your master password
 
-    def register(self, centroid):
-        self.objects[self.nextObjectID] = centroid
-        self.disappeared[self.nextObjectID] = 0
-        self.nextObjectID += 1
+class App(tk.Tk):
+    def _init_(self):
+        super()._init_()
+        self.title("App")
+        self.geometry("500x500")
+        self.frames = {}
 
-    def deregister(self, objectID):
-        del self.objects[objectID]
-        del self.disappeared[objectID]
+        # Initialize all pages (frames)
+        for Page in (LogSign, Login, SignUp, HomePage):
+            page_name = Page._name_
+            frame = Page(self)
+            self.frames[page_name] = frame
+            frame.place(relwidth=1, relheight=1)  # Stack all frames but keep them hidden
 
-    def update(self, rects):
-        if len(rects) == 0:
-            for objectID in list(self.disappeared.keys()):
-                self.disappeared[objectID] += 1
-                if self.disappeared[objectID] > self.maxDisappeared:
-                    self.deregister(objectID)
-            return self.objects
+        self.show_frame("LogSign")  # Start with the LogSign page
 
-        inputCentroids = np.zeros((len(rects), 2), dtype="int")
-        for (i, (startX, startY, endX, endY)) in enumerate(rects):
-            cX = int((startX + endX) / 2.0)
-            cY = int((startY + endY) / 2.0)
-            inputCentroids[i] = (cX, cY)
+        # Handle the close event
+        self.protocol("WM_DELETE_WINDOW", self.on_close)
 
-        if len(self.objects) == 0:
-            for i in range(len(inputCentroids)):
-                self.register(inputCentroids[i])
+    def show_frame(self, page_name):
+        """Bring the specified frame to the front."""
+        frame = self.frames[page_name]
+        frame.tkraise()  # Bring the frame to the top
+
+    def on_close(self):
+        """Handle the application close event."""
+        if messagebox.askokcancel("Quit", "Do you want to quit?"):
+            self.destroy()
+
+class LogSign(tk.Frame):
+    def _init_(self, parent):
+        super()._init_(parent)
+        self.parent = parent  # Store reference to the parent window
+
+        # Load the background image and store it as an instance attribute
+        background_image = Image.open("BackG.png")  # Replace with your image path
+        resized_image = background_image.resize((500, 500))  # Adjust to your window size
+        self.background_photo = ImageTk.PhotoImage(resized_image)
+
+        # Create a label to hold the image
+        background_label = tk.Label(self, image=self.background_photo)
+        background_label.place(relwidth=1, relheight=1)  # Cover the entire window
+
+        style = ttk.Style(self)
+        style.configure(
+            "TButton",
+            background="#004AAD",  # Set the default background color
+            foreground="#004AAD",
+            padding=(15, 2),
+            font=("Arial", 12)
+        )
+
+        style.map(
+            "TButton",
+            background=[("active", "#004AAD")],  # Background color when button is active (hovered or clicked)
+            foreground=[("active", "blue")],  # Text color when hovered or clicked
+        )
+
+        # Create the buttons
+        self.log_button = ttk.Button(self, text="Log In", style="TButton", padding=(30, 5), command=lambda: parent.show_frame("Login"))
+        self.sign_button = ttk.Button(self, text="Sign Up", style="TButton", padding=(27, 5), command=lambda: parent.show_frame("SignUp"))
+
+        # Calculate positions to center the buttons
+        button_width = 120  # Approximate width of the button (adjust as needed)
+        button_height = 40  # Approximate height of the button (adjust as needed)
+
+        window_width = 500
+        window_height = 500
+
+        x_center = (window_width - button_width) // 2
+        log_y_center = (window_height // 2) - 30  # Adjust offset for the first button
+        sign_y_center = (window_height // 2) + 30  # Adjust offset for the second button
+
+        # Use place() with calculated positions and anchor
+        self.log_button.place(x=x_center, y=log_y_center, width=button_width, height=button_height, anchor="nw")
+        self.sign_button.place(x=x_center, y=sign_y_center, width=button_width, height=button_height, anchor="nw")
+
+class Login(tk.Frame):
+    def _init_(self, parent):
+        super()._init_(parent)
+        self.parent = parent  # Store reference to the parent window
+
+        self.grid_rowconfigure(0, weight=1)  # Allow rows to expand
+        self.grid_rowconfigure(6, weight=1)  # Bottom spacer
+        self.grid_columnconfigure(0, weight=1)  # Allow columns to expand
+
+        # Load background image and store it as an instance attribute
+        background_image1 = Image.open("1.png")  # Replace with your image path
+        resized_image = background_image1.resize((500, 500))  # Adjust to your window size
+        self.background_photo = ImageTk.PhotoImage(resized_image)
+
+        background_label = tk.Label(self, image=self.background_photo)
+        background_label.place(relwidth=1, relheight=1)  # Cover the entire window
+
+        # Email Label and Entry
+        ttk.Label(self, text="Email:").grid(row=1, column=0, pady=(20, 5), sticky="n")
+        self.email_entry = ttk.Entry(self, width=40)
+        self.email_entry.grid(row=2, column=0, pady=(0, 20), sticky="n")
+
+        # Password Label and Entry
+        ttk.Label(self, text="Master Password:").grid(row=3, column=0, pady=(0, 5), sticky="n")
+
+        password_frame = ttk.Frame(self)  # Create a frame for password entry and toggle
+        password_frame.grid(row=4, column=0, pady=(0, 20), sticky="n")
+
+        self.show_password = False
+
+        self.password_var = tk.StringVar()
+        self.password_entry = ttk.Entry(password_frame, textvariable=self.password_var, show="*", width=35)
+        self.password_entry.grid(row=0, column=0)
+
+        # Password visibility toggle button
+        script_dir = os.path.dirname(os.path.abspath(_file_))
+        self.eye_open_image = ImageTk.PhotoImage(Image.open(os.path.join(script_dir, "View(2).png")).resize((20, 20)))
+        self.eye_closed_image = ImageTk.PhotoImage(Image.open(os.path.join(script_dir, "Hide(2).png")).resize((20, 20)))
+
+        self.eye_button = ttk.Label(password_frame, image=self.eye_closed_image, cursor="hand2")
+        self.eye_button.grid(row=0, column=1, padx=5)
+        self.eye_button.bind("<Button-1>", self.toggle_password)
+
+        # Login Button
+        self.login_button = ttk.Button(self, text="Login", command=self.add_account)
+        self.login_button.grid(row=5, column=0, pady=(0, 30), sticky="n")
+
+    def add_account(self):
+        emailp = self.email_entry.get()
+        masterpass = self.password_entry.get()
+
+        if not masterpass or not emailp or masterpass != master_pass or emailp != email_origin:
+            messagebox.showwarning("Input Error", "Password or Email is incorrect. Please try again.")
+            return
+
+        if masterpass == master_pass:
+            self.destroy()
+            HomePage(tk.Frame)
+
+    def toggle_password(self, event=None):
+        """Toggle password visibility."""
+        if self.show_password:
+            self.password_entry.config(show="*")
+            self.eye_button.config(image=self.eye_closed_image)
+            self.show_password = False
         else:
-            objectIDs = list(self.objects.keys())
-            objectCentroids = list(self.objects.values())
-            D = dist.cdist(np.array(objectCentroids), inputCentroids)
+            self.password_entry.config(show="")
+            self.eye_button.config(image=self.eye_open_image)
+            self.show_password = True
 
-            rows = D.min(axis=1).argsort()
-            cols = D.argmin(axis=1)[rows]
+    def add_account(self):
+        email = self.email_entry.get()
+        masterp = self.password_entry.get()
 
-            usedRows, usedCols = set(), set()
+        if not masterp or not email or masterp != master_pass or email != email_origin:
+            messagebox.showwarning("Input Error", "Password or Email is incorrect. Please try again.")
+            return
 
-            for (row, col) in zip(rows, cols):
-                if row in usedRows or col in usedCols:
-                    continue
-                if D[row, col] > self.maxDistance:
-                    continue
+        if masterp == master_pass:
+            self.parent.show_frame("HomePage")
 
-                objectID = objectIDs[row]
-                self.objects[objectID] = inputCentroids[col]
-                self.disappeared[objectID] = 0
-                usedRows.add(row)
-                usedCols.add(col)
+class SignUp(tk.Frame):
+    def _init_(self, parent):
+        super()._init_(parent)
+        self.parent = parent
 
-            unusedRows = set(range(0, D.shape[0])).difference(usedRows)
-            unusedCols = set(range(0, D.shape[1])).difference(usedCols)
+        # Load background image and store it as an instance attribute
+        background_image2 = Image.open("2.png")  # Replace with your image path
+        resized_image = background_image2.resize((500, 500))  # Adjust to your window size
+        self.background_photo = ImageTk.PhotoImage(resized_image)
 
-            for row in unusedRows:
-                objectID = objectIDs[row]
-                self.disappeared[objectID] += 1
-                if self.disappeared[objectID] > self.maxDisappeared:
-                    self.deregister(objectID)
+        background_label = tk.Label(self, image=self.background_photo)
+        background_label.place(relwidth=1, relheight=1)  # Cover the entire window
 
-            for col in unusedCols:
-                self.register(inputCentroids[col])
+        ttk.Label(self, text="Sign Up (Feature not implemented)").pack(pady=20)
 
-        return self.objects
+class HomePage(tk.Frame):
+    def _init_(self, parent):
+        super()._init_(parent)
+        root = tk.Tk()
+        root.title("People Density Monitor")
 
 
-# Load YOLOv5 model (ensure you have the latest YOLOv5 model loaded)
-model = torch.hub.load('ultralytics/yolov5', 'yolov5s', pretrained=True)
-model.classes = [0]  # Only detect "person" class (class 0)
+        phone_density_label = tk.Label(root, text="Phone Cam: Calculating...", font=("Arial", 16))
+        phone_density_label.pack()
+        laptop_density_label = tk.Label(root, text="Laptop Cam: Calculating...", font=("Arial", 16))
+        laptop_density_label.pack()
 
-# Initialize video capture (replace with your video path)
-video_file = "C:/Users/akash/Downloads/3105196-uhd_3840_2160_30fps.mp4"  # Replace with your video path
-cap = cv2.VideoCapture(video_file)
 
-if not cap.isOpened():
-    print("Error: Cannot open video file.")
-else:
-    print("Video file opened successfully.")
+        error_label = tk.Label(root, text="", font=("Arial", 16), fg="red")
+        error_label.pack()
 
-# Create a CentroidTracker instance
-tracker = CentroidTracker(maxDisappeared=40, maxDistance=50)
 
-# Process video
-while cap.isOpened():
-    ret, frame = cap.read()
+        model = torch.hub.load('ultralytics/yolov5', 'yolov5s', pretrained=True)
+        model.classes = [0]  # Detect only "person" class
 
-    if not ret:
-        print("Error: Cannot read frame or video ended.")
-        break
 
-    print("Processing frame...")  # Debugging: Processing frame
+        phone_cam_url = "http://192.168.161.164:4747/video"#make sure your are connected to same network
+        phone_cam = cv2.VideoCapture(phone_cam_url)
 
-    # Resize frame for consistency
-    frame_resized = cv2.resize(frame, (640, 480))
+        # Laptop camera
+        laptop_cam = cv2.VideoCapture(0)
 
-    # Perform detection with YOLOv5
-    results = model(frame_resized)
-    detections = results.xyxy[0].cpu().numpy()  # Extract detections
+        # Initialize  grid cells for the feed
+        previous_phone_counts = [0] * 9 
+        previous_laptop_counts = [0] * 9 
 
-    # Prepare bounding boxes for tracking (rectangles)
-    rects = []
-    for det in detections:
-        x_min, y_min, x_max, y_max, confidence, cls = det
-        if confidence > 0.5:  # Only consider detections with confidence > 0.5
-            rects.append((int(x_min), int(y_min), int(x_max), int(y_max)))
+        def draw_grid_and_counts(frame, grid_counts, grid_size=(3, 3), color=(0, 255, 0), font_scale=0.6, thickness=2):
+            """
+            Draw a 3x3 grid on the frame and overlay the person counts in each cell.
+            """
+            frame_height, frame_width, _ = frame.shape
+            cell_width = frame_width // grid_size[1]
+            cell_height = frame_height // grid_size[0]
 
-    # Update CentroidTracker with current detections
-    objects = tracker.update(rects)
 
-    # Draw bounding boxes and IDs on the frame
-    for objectID, centroid in objects.items():
-        cX, cY = centroid  # Get centroid coordinates
+            for i in range(1, grid_size[1]):
+                x = i * cell_width
+                cv2.line(frame, (x, 0), (x, frame_height), color, thickness) 
 
-        # Draw a circle at the centroid of each tracked object
-        cv2.circle(frame_resized, (cX, cY), 5, (0, 255, 0), -1)
-        text = f"ID {objectID}"
-        cv2.putText(frame_resized, text, (cX, cY - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+            for i in range(1, grid_size[0]):
+                y = i * cell_height
+                cv2.line(frame, (0, y), (frame_width, y), color, thickness)
 
-    # Display the frame with tracking info
-    cv2.imshow("Video Tracking", frame_resized)
+ 
+            for i in range(grid_size[0]):
+                for j in range(grid_size[1]):
+                    grid_index = i * grid_size[1] + j
+                    count_text = f"{grid_counts[grid_index]} person(s)"
+                    x = j * cell_width + 10
+                    y = i * cell_height + 30
+                    cv2.putText(frame, count_text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, font_scale, color, thickness)
 
-    # Exit on 'q' key press
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        print("Exiting...")
-        break
+            return frame
 
-# Release the video capture and close the window
-cap.release()
-cv2.destroyAllWindows()
+        def process_frame():
+            global phone_cam, laptop_cam, model, previous_phone_counts, previous_laptop_counts
+
+            phone_counts = [0] * 9
+            laptop_counts = [0] * 9
+
+            def count_people_in_grid(detections, frame_width, frame_height, grid_size=(3, 3)):
+                grid_counts = [0] * (grid_size[0] * grid_size[1])
+                cell_width = frame_width // grid_size[1]
+                cell_height = frame_height // grid_size[0]
+
+                for det in detections:
+                    x_min, y_min, x_max, y_max = det[:4]
+                    center_x = (x_min + x_max) / 2
+                    center_y = (y_min + y_max) / 2
+
+            
+                    grid_x = int(center_x // cell_width)
+                    grid_y = int(center_y // cell_height)
+                    grid_index = grid_y * grid_size[1] + grid_x
+                    if 0 <= grid_index < len(grid_counts):
+                        grid_counts[grid_index] += 1
+
+                return grid_counts
+
+            # Process phone camera
+            ret1, phone_frame = phone_cam.read()
+            if ret1:
+                phone_frame_resized = cv2.resize(phone_frame, (640, 480))
+                phone_results = model(phone_frame_resized)
+                phone_detections = phone_results.xyxy[0].cpu().numpy()
+                phone_counts = count_people_in_grid(phone_detections, 640, 480)
+
+                # Detect abnormal crowd density increase in phone cam
+                for i, (current_count, prev_count) in enumerate(zip(phone_counts, previous_phone_counts)):
+                    if current_count - prev_count > 50:
+                        error_label.config(text=f"Check Phone Cam: Issue in Grid Cell {i+1}")
+
+                previous_phone_counts = phone_counts.copy()  # Update counts
+
+                # Annotate frame
+                phone_frame_annotated = phone_results.render()[0].copy()
+                phone_frame_annotated = draw_grid_and_counts(phone_frame_annotated, phone_counts)
+
+            # Process laptop camera
+            ret2, laptop_frame = laptop_cam.read()
+            if ret2:
+                laptop_frame_resized = cv2.resize(laptop_frame, (640, 480))
+                laptop_results = model(laptop_frame_resized)
+                laptop_detections = laptop_results.xyxy[0].cpu().numpy()
+                laptop_counts = count_people_in_grid(laptop_detections, 640, 480)
+
+                # Detect abnormal crowd density increase in laptop cam
+                for i, (current_count, prev_count) in enumerate(zip(laptop_counts, previous_laptop_counts)):
+                    if current_count - prev_count > 50:
+                        error_label.config(text=f"Check Laptop Cam: Issue in Grid Cell {i+1}")
+
+                previous_laptop_counts = laptop_counts.copy()  # Update counts
+
+        
+                laptop_frame_annotated = laptop_results.render()[0].copy()
+                laptop_frame_annotated = draw_grid_and_counts(laptop_frame_annotated, laptop_counts)
+
+
+            phone_density_label.config(text=f"Phone Cam: {sum(phone_counts)} person(s)")
+            laptop_density_label.config(text=f"Laptop Cam: {sum(laptop_counts)} person(s)")
+
+
+            if ret1 or ret2:
+
+                separator = np.zeros((480, 10, 3), dtype=np.uint8)
+
+                if ret1 and ret2:
+                    combined_frame = cv2.hconcat([phone_frame_annotated, separator, laptop_frame_annotated])
+                elif ret1:
+                    combined_frame = phone_frame_annotated
+                elif ret2:
+                    combined_frame = laptop_frame_annotated
+
+                cv2.imshow("Combined Camera Feeds", combined_frame)
+
+
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                root.quit()
+                phone_cam.release()
+                laptop_cam.release()
+                cv2.destroyAllWindows()
+
+
+            root.after(10, process_frame)
+
+
+        process_frame()
+
+        root.mainloop()
+
+
+
+app = App()  # No 'root' argument passed
+app.mainloop()

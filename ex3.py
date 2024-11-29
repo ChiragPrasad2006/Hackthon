@@ -23,7 +23,7 @@ model = torch.hub.load('ultralytics/yolov5', 'yolov5s', pretrained=True)
 model.classes = [0]  # Detect only "person" class
 
 # Phone camera URL
-phone_cam_url = "http://192.168.161.164:4747/video"#make sure your are connected to same network
+phone_cam_url = "http://192.168.137.190:4747/video"#make sure your are connected to same network
 phone_cam = cv2.VideoCapture(phone_cam_url)
 
 # Laptop camera

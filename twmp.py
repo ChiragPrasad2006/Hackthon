@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox,Label
 from PIL import Image, ImageTk
 import cv2
 import os
@@ -192,13 +192,13 @@ class HomePage(tk.Frame):
         self.parent = parent
         self.initialized = False  # Flag to ensure camera setup runs only once
 
-        self.phone_density_label = tk.Label(self, text="Phone Cam: Calculating...", font=("Arial", 16))
+        self.phone_density_label = Label(self, text="Phone Cam: Calculating...", font=("Arial", 16))
         self.phone_density_label.pack(pady=10)
-        self.laptop_density_label = tk.Label(self, text="Laptop Cam: Calculating...", font=("Arial", 16))
+        self.laptop_density_label = Label(self, text="Laptop Cam: Calculating...", font=("Arial", 16))
         self.laptop_density_label.pack(pady=10)
 
         self.error_label = tk.Label(self, text="", font=("Arial", 16), fg="red")
-        self.error_label.pack(pady=10)
+        self.error_label.pack()
 
     def initialize_cameras(self):
         if self.initialized:
@@ -335,6 +335,8 @@ class HomePage(tk.Frame):
 
 
             self.after(10, self.process_frame)
+
+        self.process_frame()
 
     def release_resources(self):
         """Release camera resources on exit or switching."""
